@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Procedural Map Generator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        h1 { margin-bottom: 10px; }
+        p { margin-top: 0; color: #aaaaaa; }
+        canvas {
+            border: 4px solid #333333;
+            border-radius: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        button {
+            margin-top: 20px;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+
+    <h1>Random Island Generator</h1>
+    <p>Every refresh yields a completely new procedural world!</p>
+    
+    <canvas id="mapCanvas" width="500" height="500"></canvas>
+    
+    <button onclick="generateMap()">Generate New Map</button>
+
+    <script>
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Simple pseudo-random noise function
+        function noise(x, y, seed) {
+            let n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
+            return n - Math.floor(n);
+        }
+
+        // 2D Linear Interpolation
+        function lerp(a, b, t) {
+            return a + (b - a) * t;
+        }
+
+        // Smooth noise (value noise)
+        function smoothNoise(x, y, seed) {
+            let x_floor = Math.floor(x);
+            let y_floor = Math.floor(y);
+            let x_frac = x - x_floor;
+            let y_frac = y - y_floor;
+
+            let v1 = noise(x_floor, y_floor, seed);
+            let v2 = noise(x_floor + 1, y_floor, seed);
+            let v3 = noise(x_floor, y_floor + 1, seed);
+            let v4 = noise(x_floor + 1, y_floor + 1, seed);
+
+            let i1 = lerp(v1, v2, x_frac);
+            let i2 = lerp(v3, v4, x_frac);
+
+            return lerp(i1, i2, y_frac);
+        }
+
+        // Fractal Brownian Motion (combines noises at different frequencies)
+        function octaveNoise(x, y, octaves, persistence, seed) {
+            let total = 0;
+            let frequency = 0.01;
+            let amplitude = 1;
+            let maxVal = 0;
+
+            for (let i = 0; i < octaves; i++) {
+                total += smoothNoise(x * frequency, y * frequency, seed) * amplitude;
+                maxVal += amplitude;
+                amplitude *= persistence;
+                frequency *= 2;
+            }
+
+            return total / maxVal;
+        }
+
+        function generateMap() {
+            // Generate a random seed for the map
+            const seed = Math.random() * 1000;
+            const imgData = ctx.createImageData(width, height);
+            const data = imgData.data;
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    // Calculate distance from center to create a circular island
+                    let dx = x - width / 2;
+                    let dy = y - height / 2;
+                    let dist = Math.sqrt(dx * dx + dy * dy) / (width / 2);
+                    
+                    // Base height on Perlin-like noise
+                    let e = octaveNoise(x, y, 4, 0.5, seed);
+                    
+                    // Adjust height based on distance from center (fade to ocean on edges)
+                    e = e - dist * 0.3;
+
+                    let r, g, b;
+
+                    if (e < 0.2) {
+                        // Deep Ocean
+                        r = 10; g = 50; b = 120;
+                    } else if (e < 0.35) {
+                        // Shallow Water
+                        r = 30; g = 120; b = 200;
+                    } else if (e < 0.4) {
+                        // Sand
+                        r = 220; g = 200; b = 130;
+                    } else if (e < 0.65) {
+                        // Grass
+                        r = 50; g = 160; b = 60;
+                    } else if (e < 0.8) {
+                        // Mountain
+                        r = 110; g = 100; b = 90;
+                    } else {
+                        // Snow
+                        r = 255; g = 255; b = 255;
+                    }
+
+                    let index = (y * width + x) * 4;
+                    data[index] = r;
+                    data[index + 1] = g;
+                    data[index + 2] = b;
+                    data[index + 3] = 255; // Alpha
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+        }
+
+        // Generate map on first load
+        generateMap();
+    </script>
+</body>
+</html>
